@@ -9,3 +9,7 @@ gitleaks.sarif
 .DS_Store
 .idea/
 .vscode/
+tmp
+temp
+tmp/worktrees
+temp/worktrees
