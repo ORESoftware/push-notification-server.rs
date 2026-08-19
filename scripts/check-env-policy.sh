@@ -9,9 +9,12 @@ fail() {
   exit 1
 }
 
-for file in .gitignore .gitattributes .sops.yaml .env.example justfile env/README.md scripts/verify-sops-release-policy.py; do
+for file in .dockerignore .gitignore .gitattributes .sops.yaml .env.example justfile env/README.md scripts/prepare-env-tree.sh scripts/verify-sops-release-policy.py; do
   test -f "$file" || fail "missing $file"
 done
+
+bash -n scripts/prepare-env-tree.sh
+bash scripts/prepare-env-tree.sh
 
 git check-ignore --no-index -q .env || fail "root .env must be ignored"
 git check-ignore --no-index -q sample.env || fail "root plaintext dotenv must be ignored"
@@ -25,6 +28,23 @@ fi
 if git check-ignore --no-index -q env/enc/prod.env.enc; then
   fail "approved prod ciphertext is ignored"
 fi
+
+for pattern in \
+  '.env' \
+  '.env.*' \
+  '**/*.env' \
+  '**/*.env.*' \
+  'env/dec' \
+  'env/dec/**' \
+  'env/enc' \
+  'env/enc/**' \
+  '*.pem' \
+  '*.key' \
+  '*.p8' \
+  '*service-account*.json'; do
+  grep -Fxq "$pattern" .dockerignore \
+    || fail ".dockerignore is missing required exclusion: $pattern"
+done
 
 grep -Fq '/env/enc/*.env.enc text eol=lf' .gitattributes \
   || fail "missing ciphertext LF normalization"
@@ -41,14 +61,39 @@ python3 scripts/verify-sops-release-policy.py .sops.yaml prod
 
 python3 - <<'PY'
 from pathlib import Path
+import re
 
 text = Path("justfile").read_text(encoding="utf-8")
-for recipe in ("use name:", "encrypt name:", "refresh:"):
+recipes = (
+    "bootstrap:",
+    "seed name:",
+    'run name="dev":',
+    'test-env name="dev":',
+    "exec-env name command:",
+    "use name:",
+    "status:",
+    "edit name:",
+    "encrypt name:",
+    "diff name:",
+    "refresh:",
+    "lock:",
+    "verify:",
+    'verify-release-policy name="prod":',
+    "hooks:",
+)
+for recipe in recipes:
     start = text.index(recipe)
     next_recipe = text.find("\n\n", start)
     body = text[start:] if next_recipe == -1 else text[start:next_recipe]
-    if "mkdir -p env/dec" not in body or "chmod 700 env/dec" not in body:
-        raise SystemExit(f"{recipe} must create a private env/dec directory before delegation")
+    if "bash scripts/prepare-env-tree.sh" not in body:
+        raise SystemExit(f"{recipe} must invoke the symlink-safe environment-tree guard")
+
+for unsafe in (
+    r"(?m)^\s*@?mkdir\s+-p\s+(?:--\s+)?(?:env/enc\s+)?env/dec(?:\s|$)",
+    r"(?m)^\s*@?chmod\s+700\s+(?:--\s+)?env/dec(?:\s|$)",
+):
+    if re.search(unsafe, text):
+        raise SystemExit("justfile must not manipulate env/dec before the symlink-safe guard")
 PY
 
 is_plaintext_env_path() {
@@ -68,7 +113,7 @@ while IFS= read -r -d '' path; do
     env/enc/*)
       fail "unexpected tracked path under env/enc: $path"
       ;;
-    .sops.yaml|.gitattributes|.gitignore|.env.example)
+    .dockerignore|.sops.yaml|.gitattributes|.gitignore|.env.example|justfile|scripts/prepare-env-tree.sh)
       test "$mode" != 120000 || fail "policy path is a symlink: $path"
       ;;
     *)
