@@ -20,8 +20,7 @@ _default:
 
 # Create managed directories, install guarded hooks, and verify repository policy.
 bootstrap:
-    @mkdir -p env/enc env/dec
-    @chmod 700 env/dec
+    @bash scripts/prepare-env-tree.sh
     @ores-sops install-hooks
     @ores-sops verify
     @bash scripts/check-env-policy.sh
@@ -49,8 +48,7 @@ seed name:
     #!/usr/bin/env bash
     set -euo pipefail
     case '{{ name }}' in dev|prod) ;; *) echo "name must be dev or prod" >&2; exit 2 ;; esac
-    mkdir -p env/dec
-    chmod 700 env/dec
+    bash scripts/prepare-env-tree.sh
     target="env/dec/{{ name }}.env"
     if [ -e "$target" ]; then
       echo "refusing to overwrite $target" >&2
@@ -63,60 +61,67 @@ seed name:
 
 # Run the service with ciphertext decrypted directly into the child process.
 run name="dev":
+    @bash scripts/prepare-env-tree.sh
     @sops exec-env --same-process --input-type dotenv env/enc/{{ name }}.env.enc 'cargo run --locked'
 
 # Run the locked Rust test suite under an explicit encrypted profile.
 test-env name="dev":
+    @bash scripts/prepare-env-tree.sh
     @sops exec-env --input-type dotenv env/enc/{{ name }}.env.enc 'cargo test --locked --all-targets --all-features'
 
 # Execute an explicit trusted command under an encrypted profile.
 exec-env name command:
+    @bash scripts/prepare-env-tree.sh
     @sops exec-env --input-type dotenv env/enc/{{ name }}.env.enc '{{ command }}'
 
 # Atomically decrypt <name> and point ./.env at env/dec/<name>.env.
 use name:
-    @mkdir -p env/dec
-    @chmod 700 env/dec
+    @bash scripts/prepare-env-tree.sh
     @ores-sops use {{ name }}
 
 # Show per-environment state without printing secret values.
 status:
+    @bash scripts/prepare-env-tree.sh
     @ores-sops status
 
 # Edit ciphertext through SOPS without a durable plaintext edit file.
 edit name:
+    @bash scripts/prepare-env-tree.sh
     @ores-sops edit {{ name }}
 
 # Encrypt local env/dec/<name>.env into the approved tracked ciphertext path.
 encrypt name:
-    @mkdir -p env/dec
-    @chmod 700 env/dec
+    @bash scripts/prepare-env-tree.sh
     @ores-sops encrypt {{ name }}
 
 # Report only added, removed, or changed variable names.
 diff name:
+    @bash scripts/prepare-env-tree.sh
     @ores-sops diff {{ name }}
 
 # Re-decrypt the selected environment when ciphertext changes.
 refresh:
-    @mkdir -p env/dec
-    @chmod 700 env/dec
+    @bash scripts/prepare-env-tree.sh
     @ores-sops refresh
 
 # Remove managed plaintext, temporary state, and the root .env symlink.
 lock:
+    @bash scripts/prepare-env-tree.sh
     @ores-sops lock
 
 # Keyless policy verification; protected hosts may set ORES_SOPS_VERIFY_DECRYPT=1.
 verify:
+    @bash scripts/prepare-env-tree.sh
     @bash scripts/check-env-policy.sh
     @ores-sops verify
 
 # Structural production-recipient gate. Decryptability still needs a protected witness.
 verify-release-policy name="prod":
+    @bash scripts/prepare-env-tree.sh
     @python3 scripts/verify-sops-release-policy.py .sops.yaml {{ name }}
 
 audit: verify
 
 hooks:
+    @bash scripts/prepare-env-tree.sh
     @ores-sops install-hooks
