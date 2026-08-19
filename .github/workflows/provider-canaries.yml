@@ -3,57 +3,116 @@ name: Provider canaries
 on:
   workflow_dispatch:
   schedule:
-    # Weekly canary against main. Both jobs exit 0 without contacting any
-    # provider when their secret set is absent, so the schedule is inert until
-    # credentials are configured; when configured it detects SendGrid/Twilio
-    # API contract drift between releases.
+    # Weekly canary against main. A job that is not configured reports that no
+    # provider claim was made and performs no checkout, toolchain install, build,
+    # or provider request.
     - cron: "41 7 * * 1"
 
 permissions:
   contents: read
 
+concurrency:
+  group: provider-canaries-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   sendgrid-sandbox:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
-    env:
-      SENDGRID_CANARY_API_KEY: ${{ secrets.SENDGRID_CANARY_API_KEY }}
-      SENDGRID_CANARY_FROM_EMAIL: ${{ secrets.SENDGRID_CANARY_FROM_EMAIL }}
-      SENDGRID_CANARY_TO_EMAIL: ${{ secrets.SENDGRID_CANARY_TO_EMAIL }}
-      SENDGRID_CANARY_REGION: ${{ vars.SENDGRID_CANARY_REGION }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.100.0
-      - uses: Swatinem/rust-cache@v2
-      - name: Run SendGrid sandbox canary when configured
+      - name: Detect SendGrid canary configuration
+        id: configured
         shell: bash
+        env:
+          SENDGRID_CANARY_API_KEY: ${{ secrets.SENDGRID_CANARY_API_KEY }}
+          SENDGRID_CANARY_FROM_EMAIL: ${{ secrets.SENDGRID_CANARY_FROM_EMAIL }}
+          SENDGRID_CANARY_TO_EMAIL: ${{ secrets.SENDGRID_CANARY_TO_EMAIL }}
         run: |
-          if [[ -z "$SENDGRID_CANARY_API_KEY" || -z "$SENDGRID_CANARY_FROM_EMAIL" || -z "$SENDGRID_CANARY_TO_EMAIL" ]]; then
-            echo "SendGrid canary secrets are not configured; skipping without contacting SendGrid."
-            exit 0
+          set -euo pipefail
+          if [[ -n "$SENDGRID_CANARY_API_KEY" && -n "$SENDGRID_CANARY_FROM_EMAIL" && -n "$SENDGRID_CANARY_TO_EMAIL" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "SendGrid sandbox canary is configured." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "SendGrid sandbox canary is NOT configured; no provider claim was made." >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Check out exact revision
+        if: steps.configured.outputs.enabled == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install repository Rust toolchain
+        if: steps.configured.outputs.enabled == 'true'
+        uses: dtolnay/rust-toolchain@fef302ccf927bb57eda82b1967aefb2033c6a515
+        with:
+          toolchain: 1.88.0
+
+      - name: Restore Rust cache
+        if: steps.configured.outputs.enabled == 'true'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+
+      - name: Run SendGrid sandbox canary
+        if: steps.configured.outputs.enabled == 'true'
+        shell: bash
+        env:
+          SENDGRID_CANARY_API_KEY: ${{ secrets.SENDGRID_CANARY_API_KEY }}
+          SENDGRID_CANARY_FROM_EMAIL: ${{ secrets.SENDGRID_CANARY_FROM_EMAIL }}
+          SENDGRID_CANARY_TO_EMAIL: ${{ secrets.SENDGRID_CANARY_TO_EMAIL }}
+          SENDGRID_CANARY_REGION: ${{ vars.SENDGRID_CANARY_REGION }}
+        run: |
+          set -euo pipefail
           cargo test --locked --test provider_canaries \
             sendgrid_sandbox_accepts_the_canonical_email_contract \
-            -- --ignored --exact --nocapture
+            -- --ignored --exact
 
   twilio-test-credentials:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
-    env:
-      TWILIO_TEST_ACCOUNT_SID: ${{ secrets.TWILIO_TEST_ACCOUNT_SID }}
-      TWILIO_TEST_AUTH_TOKEN: ${{ secrets.TWILIO_TEST_AUTH_TOKEN }}
-      TWILIO_TEST_TO_NUMBER: ${{ secrets.TWILIO_TEST_TO_NUMBER }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.100.0
-      - uses: Swatinem/rust-cache@v2
-      - name: Run Twilio test-credential canary when configured
+      - name: Detect Twilio canary configuration
+        id: configured
         shell: bash
+        env:
+          TWILIO_TEST_ACCOUNT_SID: ${{ secrets.TWILIO_TEST_ACCOUNT_SID }}
+          TWILIO_TEST_AUTH_TOKEN: ${{ secrets.TWILIO_TEST_AUTH_TOKEN }}
+          TWILIO_TEST_TO_NUMBER: ${{ secrets.TWILIO_TEST_TO_NUMBER }}
         run: |
-          if [[ -z "$TWILIO_TEST_ACCOUNT_SID" || -z "$TWILIO_TEST_AUTH_TOKEN" || -z "$TWILIO_TEST_TO_NUMBER" ]]; then
-            echo "Twilio test credentials are not configured; skipping without contacting Twilio."
-            exit 0
+          set -euo pipefail
+          if [[ -n "$TWILIO_TEST_ACCOUNT_SID" && -n "$TWILIO_TEST_AUTH_TOKEN" && -n "$TWILIO_TEST_TO_NUMBER" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Twilio test-credential canary is configured." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Twilio test-credential canary is NOT configured; no provider claim was made." >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Check out exact revision
+        if: steps.configured.outputs.enabled == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install repository Rust toolchain
+        if: steps.configured.outputs.enabled == 'true'
+        uses: dtolnay/rust-toolchain@fef302ccf927bb57eda82b1967aefb2033c6a515
+        with:
+          toolchain: 1.88.0
+
+      - name: Restore Rust cache
+        if: steps.configured.outputs.enabled == 'true'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+
+      - name: Run Twilio test-credential canary
+        if: steps.configured.outputs.enabled == 'true'
+        shell: bash
+        env:
+          TWILIO_TEST_ACCOUNT_SID: ${{ secrets.TWILIO_TEST_ACCOUNT_SID }}
+          TWILIO_TEST_AUTH_TOKEN: ${{ secrets.TWILIO_TEST_AUTH_TOKEN }}
+          TWILIO_TEST_TO_NUMBER: ${{ secrets.TWILIO_TEST_TO_NUMBER }}
+        run: |
+          set -euo pipefail
           cargo test --locked --test provider_canaries \
             twilio_test_credentials_accept_the_canonical_sms_contract \
-            -- --ignored --exact --nocapture
+            -- --ignored --exact

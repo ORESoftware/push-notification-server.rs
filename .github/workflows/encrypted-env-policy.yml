@@ -1,0 +1,50 @@
+name: Encrypted environment policy
+
+on:
+  pull_request:
+    paths:
+      - '.dockerignore'
+      - '.env.example'
+      - '.gitattributes'
+      - '.gitignore'
+      - '.sops.yaml'
+      - 'env/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'justfile'
+      - 'scripts/check-env-policy.sh'
+      - 'scripts/prepare-env-tree.sh'
+      - 'scripts/verify-sops-release-policy.py'
+      - '.github/workflows/encrypted-env-policy.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - '.dockerignore'
+      - '.env.example'
+      - '.gitattributes'
+      - '.gitignore'
+      - '.sops.yaml'
+      - 'env/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'justfile'
+      - 'scripts/check-env-policy.sh'
+      - 'scripts/prepare-env-tree.sh'
+      - 'scripts/verify-sops-release-policy.py'
+      - '.github/workflows/encrypted-env-policy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository without persisting credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify fail-closed encrypted environment policy
+        run: bash scripts/check-env-policy.sh
