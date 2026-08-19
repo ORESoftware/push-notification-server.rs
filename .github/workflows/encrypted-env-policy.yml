@@ -3,6 +3,7 @@ name: Encrypted environment policy
 on:
   pull_request:
     paths:
+      - '.dockerignore'
       - '.env.example'
       - '.gitattributes'
       - '.gitignore'
@@ -12,12 +13,14 @@ on:
       - 'flake.lock'
       - 'justfile'
       - 'scripts/check-env-policy.sh'
+      - 'scripts/prepare-env-tree.sh'
       - 'scripts/verify-sops-release-policy.py'
       - '.github/workflows/encrypted-env-policy.yml'
   push:
     branches:
       - main
     paths:
+      - '.dockerignore'
       - '.env.example'
       - '.gitattributes'
       - '.gitignore'
@@ -27,6 +30,7 @@ on:
       - 'flake.lock'
       - 'justfile'
       - 'scripts/check-env-policy.sh'
+      - 'scripts/prepare-env-tree.sh'
       - 'scripts/verify-sops-release-policy.py'
       - '.github/workflows/encrypted-env-policy.yml'
 
