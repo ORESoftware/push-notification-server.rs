@@ -1,11 +1,34 @@
 /target/
 gitleaks.sarif
-.env
+
+# Plaintext dotenv is local-only at every depth, including common suffix variants.
+*.env
+*/*.env
+*/**/*.env
 .env.*
+*.env.*
 !.env.example
+
+# Decrypted material is never tracked.
+/env/dec/
+
+# Only the two approved SOPS ciphertext files are trackable.
+/env/enc/*
+!/env/enc/dev.env.enc
+!/env/enc/prod.env.enc
+
+# Never commit provider key material or service-account documents.
 *.pem
 *.p8
+*.key
 *service-account*.json
+
+# Nix and direnv local state.
+.direnv/
+result
+result-*
+
+# Editor, OS, and local worktree scratch.
 .DS_Store
 .idea/
 .vscode/

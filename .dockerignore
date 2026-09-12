@@ -1,0 +1,22 @@
+.git
+.github
+.direnv
+result
+result-*
+target
+
+# Never put plaintext or ciphertext environment material in an image layer.
+.env
+.env.*
+**/*.env
+**/*.env.*
+env/dec
+env/dec/**
+env/enc
+env/enc/**
+
+# Provider and private-key material.
+*.pem
+*.key
+*.p8
+*service-account*.json

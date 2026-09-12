@@ -1,3 +1,4 @@
+use std::fmt;
 use std::time::{Duration, SystemTime};
 
 use async_trait::async_trait;
@@ -58,7 +59,7 @@ pub enum SendGridConfigError {
     HttpClient(#[source] reqwest::Error),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SendGridConfig {
     api_key: String,
     from_email: String,
@@ -66,6 +67,20 @@ pub struct SendGridConfig {
     api_base_url: Url,
     sandbox_mode: bool,
     request_timeout: Duration,
+}
+
+impl fmt::Debug for SendGridConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("SendGridConfig")
+            .field("api_key", &"[REDACTED]")
+            .field("from_email", &self.from_email)
+            .field("from_name", &self.from_name)
+            .field("api_base_url", &self.api_base_url)
+            .field("sandbox_mode", &self.sandbox_mode)
+            .field("request_timeout", &self.request_timeout)
+            .finish()
+    }
 }
 
 impl SendGridConfig {
@@ -445,6 +460,22 @@ mod tests {
             },
             trace: TraceMetadata::default(),
         }
+    }
+
+    #[test]
+    fn debug_output_redacts_api_key() {
+        let api_key = "SG.fixture-secret-that-must-never-appear";
+        let config = SendGridConfig::new(
+            api_key,
+            "verified@example.com",
+            Some("Verified Sender".to_owned()),
+            SendGridRegion::Global,
+        )
+        .expect("config");
+
+        let debug = format!("{config:?}");
+        assert!(!debug.contains(api_key));
+        assert!(debug.contains("[REDACTED]"));
     }
 
     #[test]

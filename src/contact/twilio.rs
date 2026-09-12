@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt;
 use std::time::{Duration, SystemTime};
 
 use async_trait::async_trait;
@@ -23,10 +24,24 @@ const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_SAFE_DETAIL_BYTES: usize = 512;
 const MAX_PROVIDER_CODE_BYTES: usize = 128;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum TwilioCredentials {
     AuthToken { token: String },
     ApiKey { sid: String, secret: String },
+}
+
+impl fmt::Debug for TwilioCredentials {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let kind = match self {
+            Self::AuthToken { .. } => "auth_token",
+            Self::ApiKey { .. } => "api_key",
+        };
+        formatter
+            .debug_struct("TwilioCredentials")
+            .field("kind", &kind)
+            .field("secret", &"[REDACTED]")
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,7 +83,7 @@ pub enum TwilioConfigError {
     HttpClient(#[source] reqwest::Error),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TwilioConfig {
     account_sid: String,
     credentials: TwilioCredentials,
@@ -77,6 +92,28 @@ pub struct TwilioConfig {
     validity_period_seconds: Option<u32>,
     api_base_url: Url,
     request_timeout: Duration,
+}
+
+impl fmt::Debug for TwilioConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sender_kind = match &self.sender {
+            TwilioSender::MessagingService { .. } => "messaging_service",
+            TwilioSender::PhoneNumber { .. } => "phone_number",
+        };
+        formatter
+            .debug_struct("TwilioConfig")
+            .field("account_sid", &"[REDACTED]")
+            .field("credentials", &self.credentials)
+            .field("sender_kind", &sender_kind)
+            .field(
+                "status_callback_configured",
+                &self.status_callback_url.is_some(),
+            )
+            .field("validity_period_seconds", &self.validity_period_seconds)
+            .field("api_base_url", &self.api_base_url)
+            .field("request_timeout", &self.request_timeout)
+            .finish()
+    }
 }
 
 impl TwilioConfig {
@@ -443,6 +480,46 @@ mod tests {
             },
             trace: TraceMetadata::default(),
         }
+    }
+
+    #[test]
+    fn debug_output_redacts_credentials_and_provider_identifiers() {
+        let account_sid = fixture_sid("AC");
+        let messaging_service_sid = fixture_sid("MG");
+        let auth_token = "fixture-auth-token-that-must-never-appear";
+        let config = TwilioConfig::new(
+            account_sid.clone(),
+            TwilioCredentials::AuthToken {
+                token: auth_token.to_owned(),
+            },
+            TwilioSender::MessagingService {
+                sid: messaging_service_sid.clone(),
+            },
+        )
+        .expect("config")
+        .with_status_callback_url(
+            Url::parse("https://callbacks.example.com/twilio/status?token=private")
+                .expect("callback URL"),
+        )
+        .expect("callback");
+
+        let debug = format!("{config:?}");
+        assert!(!debug.contains(auth_token));
+        assert!(!debug.contains(&account_sid));
+        assert!(!debug.contains(&messaging_service_sid));
+        assert!(!debug.contains("token=private"));
+        assert!(debug.contains("[REDACTED]"));
+
+        let api_key_sid = fixture_sid("SK");
+        let api_key_secret = "fixture-api-key-secret-that-must-never-appear";
+        let credentials = TwilioCredentials::ApiKey {
+            sid: api_key_sid.clone(),
+            secret: api_key_secret.to_owned(),
+        };
+        let credential_debug = format!("{credentials:?}");
+        assert!(!credential_debug.contains(api_key_secret));
+        assert!(!credential_debug.contains(&api_key_sid));
+        assert!(credential_debug.contains("[REDACTED]"));
     }
 
     #[test]

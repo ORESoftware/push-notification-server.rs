@@ -1,0 +1,20 @@
+# Repository-scoped SOPS policy. Every age1... value below is PUBLIC key material.
+# Private age identities and decrypted values must never enter Git, Linear, logs,
+# caches, container layers, or pull-request artifacts.
+#
+# Recipient changes must be followed by `sops updatekeys` and credential rotation
+# when access is removed. Verify independent custody before production reliance.
+creation_rules:
+  - path_regex: ^env/enc/dev\.env\.enc$
+    age:
+      # Daily operator identity used across the existing ORESoftware SOPS fleet.
+      - age1qrnva7lnv2jzww6ah5au0cqm4wkvkm5shpzflekdcm4nlu6wnyfqgfaxft
+      # Independently stored offline recovery identity.
+      - age1txv6jzlds2s03advmdtnm5l93qh4rkqs50nwvzk9yfvsartzue8se8t7jv
+
+  - path_regex: ^env/enc/prod\.env\.enc$
+    age:
+      # Distinct protected-production recipient.
+      - age1s8lcnaxn9g77s6j4g7p24w6sgvllpue0lzrsvp3xk02k2gwjj5ssnkp39q
+      # Independently stored offline recovery identity.
+      - age1txv6jzlds2s03advmdtnm5l93qh4rkqs50nwvzk9yfvsartzue8se8t7jv
