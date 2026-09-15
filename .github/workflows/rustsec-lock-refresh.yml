@@ -6,10 +6,17 @@ on:
       - Cargo.toml
       - Cargo.lock
       - .github/workflows/rustsec-lock-refresh.yml
+  push:
+    branches:
+      - dependabot/github_actions/actions-bd6cc7a9ac
+    paths:
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/rustsec-lock-refresh.yml
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   generate:
@@ -20,7 +27,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
+          persist-credentials: ${{ github.event_name == 'push' }}
           show-progress: false
       - name: Verify exact head
         shell: bash
@@ -50,6 +57,21 @@ jobs:
           cargo test --locked --all-features
           cargo install cargo-audit --locked --version 0.22.2
           cargo audit --deny unsound --deny yanked
+      - name: Commit Cargo-generated lock on trusted branch push
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- Cargo.lock; then
+            echo 'Cargo.lock already matches the audited generated graph.'
+            exit 0
+          fi
+          test "$GITHUB_REF_NAME" = 'dependabot/github_actions/actions-bd6cc7a9ac'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Cargo.lock
+          git commit -m 'chore(deps): commit audited Cargo-generated lock refresh'
+          git push origin "HEAD:$GITHUB_REF_NAME"
       - name: Upload generated Cargo.lock
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
