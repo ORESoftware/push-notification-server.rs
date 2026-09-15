@@ -17,7 +17,10 @@ ece = "2.3"
 futures-util = "0.3"
 hex = "0.4"
 httpdate = "1"
-jsonwebtoken = "11"
+# jsonwebtoken 11 requires exactly one process-level crypto provider. Select
+# RustCrypto explicitly so Web Push/VAPID signing cannot depend on feature
+# unification elsewhere in the graph or an ambient process default.
+jsonwebtoken = { version = "11", default-features = false, features = ["rust_crypto"] }
 p256 = { version = "0.13", features = ["pem", "pkcs8"] }
 reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
