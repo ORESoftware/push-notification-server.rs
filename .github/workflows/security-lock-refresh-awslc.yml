@@ -1,0 +1,40 @@
+name: security lock refresh aws-lc one-shot
+
+on:
+  push:
+    branches: [fix/security-lock-refresh-awslc-20260915]
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/security-lock-refresh-awslc-20260915
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - name: Regenerate reviewed JWT and security lock graph
+        run: |
+          set -euo pipefail
+          cargo update -p h2 --precise 0.4.16
+          cargo update -p rustls --precise 0.23.45
+          cargo update -p chacha20
+          cargo metadata --format-version 1 --locked >/dev/null
+          ! grep -q '^name = "rsa"$' Cargo.lock
+          git diff --check
+          test "$(git diff --name-only)" = "Cargo.lock"
+      - name: Commit Cargo-generated lockfile and remove this one-shot workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock
+          git rm .github/workflows/security-lock-refresh-awslc.yml
+          staged="$(git diff --cached --name-only | sort)"
+          expected="$(printf '%s\n' '.github/workflows/security-lock-refresh-awslc.yml' 'Cargo.lock' | sort)"
+          test "$staged" = "$expected"
+          git commit -m "fix(security): regenerate aws-lc dependency lock"
+          git push origin HEAD:fix/security-lock-refresh-awslc-20260915
