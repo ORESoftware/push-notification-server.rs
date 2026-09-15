@@ -51,6 +51,7 @@ jobs:
           cargo install cargo-audit --locked --version 0.22.2
           cargo audit --deny unsound --deny yanked
       - name: Upload generated Cargo.lock
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: rustsec-lock-${{ github.event.pull_request.head.sha || github.sha }}
