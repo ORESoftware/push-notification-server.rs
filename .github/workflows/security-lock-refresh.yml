@@ -1,0 +1,35 @@
+name: security lock refresh canary
+
+on:
+  push:
+    branches: [fix/security-lock-refresh-20260915]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - name: Refresh only the known vulnerable/yanked transitive crates
+        run: |
+          set -euo pipefail
+          cargo update -p h2 --precise 0.4.16
+          cargo update -p rustls --precise 0.23.45
+          cargo update -p chacha20
+          cargo metadata --format-version 1 --locked >/dev/null
+          git diff --check
+          git diff -- Cargo.lock
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-refreshed-cargo-lock
+          path: Cargo.lock
+          if-no-files-found: error
+          retention-days: 1
