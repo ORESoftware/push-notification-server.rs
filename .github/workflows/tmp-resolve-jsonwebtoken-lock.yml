@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - tmp/resolve-jsonwebtoken-lock-20260915
+  pull_request:
+    branches:
+      - fix/jsonwebtoken-rust-crypto-on-msrv-20260915
 
 permissions:
   contents: write
