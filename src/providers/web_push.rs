@@ -7,7 +7,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use p256::SecretKey;
-use p256::elliptic_curve::sec1::ToEncodedPoint;
+use p256::elliptic_curve::sec1::ToSec1Point;
 use p256::pkcs8::{DecodePrivateKey, EncodePrivateKey};
 use reqwest::header::RETRY_AFTER;
 use reqwest::redirect::Policy as RedirectPolicy;
@@ -189,7 +189,7 @@ fn parse_vapid_private_key(
         .to_pkcs8_der()
         .map_err(|_| WebPushConfigError::InvalidPrivateKey)?;
     let signing_key = EncodingKey::from_ec_der(private_key_der.as_bytes());
-    let public_key = secret_key.public_key().to_encoded_point(false);
+    let public_key = secret_key.public_key().to_sec1_point(false);
     let public_key = URL_SAFE_NO_PAD.encode(public_key.as_bytes());
     Ok((signing_key, public_key))
 }
@@ -690,7 +690,6 @@ mod tests {
     use std::collections::BTreeMap;
 
     use p256::pkcs8::{EncodePrivateKey, LineEnding};
-    use rand_core::OsRng;
     use serde_json::json;
 
     use super::*;
@@ -726,7 +725,7 @@ mod tests {
     }
 
     fn generated_config(policy: WebPushHostPolicy) -> WebPushConfig {
-        let key = SecretKey::random(&mut OsRng);
+        let key = SecretKey::from_slice(&[1_u8; 32]).expect("fixed test VAPID key");
         let pem = key
             .to_pkcs8_pem(LineEnding::LF)
             .expect("encode test VAPID key");
