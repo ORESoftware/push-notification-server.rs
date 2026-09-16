@@ -1,10 +1,10 @@
 use p256::SecretKey;
 use p256::pkcs8::{EncodePrivateKey, LineEnding};
 use push_notification_server::{WebPushConfig, WebPushConfigError, WebPushHostPolicy};
-use rand_core::OsRng;
 
 fn valid_private_key_pem() -> String {
-    SecretKey::random(&mut OsRng)
+    SecretKey::from_slice(&[1_u8; 32])
+        .expect("fixed test VAPID key")
         .to_pkcs8_pem(LineEnding::LF)
         .expect("encode test VAPID key")
         .to_string()
